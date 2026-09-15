@@ -7,12 +7,34 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-server/node_modules
-dist
-dist-ssr
-*.local
+# Dependency directories
+node_modules/
+server/node_modules/
+jspm_packages/
+web_modules/
+
+# Build and coverage outputs
+dist/
+dist-ssr/
+build/
+build/Release
+coverage/
+*.lcov
+.nyc_output
+.next/
+out/
+.nuxt/
+.output/
+.vuepress/dist
+.svelte-kit/
+**/.vitepress/dist
+.docusaurus/
+
+# Environment files
 .env
+.env.*
+!.env.example
+*.local
 
 # Editor directories and files
 .vscode/*
@@ -24,3 +46,46 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Diagnostic reports
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Cache directories
+.npm
+.eslintcache
+.stylelintcache
+.node_repl_history
+.cache
+.parcel-cache
+.fusebox/
+.dynamodb/
+.firebase/
+.pnpm-store
+.vite/
+**/.vitepress/cache
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn 
+.yarn-integrity
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# Vite files
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*

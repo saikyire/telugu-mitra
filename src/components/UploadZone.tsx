@@ -1,9 +1,11 @@
-import { useState, useCallback } from 'react';
-import { Upload, FileUp, AlertCircle, PlayCircle } from 'lucide-react';
+import { useState, useCallback, useMemo } from 'react';
+import { Upload, FileUp, AlertCircle, PlayCircle, CheckCircle } from 'lucide-react';
 import { useApp } from '../AppContext';
+import { validateTeluguDataset } from '../utils/languageValidator';
+import type { ValidationResult } from '../utils/languageValidator';
 
 export default function UploadZone() {
-  const { stage, isProcessing, error, setFileAndPreview, file, rawRows, processData } = useApp();
+  const { stage, isProcessing, error: appError, setFileAndPreview, file, rawRows, processData } = useApp();
   const [isDragging, setIsDragging] = useState(false);
   
   // Mapping state
@@ -27,6 +29,11 @@ export default function UploadZone() {
     if (t) setTermCol(t);
     if (m) setMeaningCol(m);
   }
+
+  const validationResult: ValidationResult | null = useMemo(() => {
+    if (stage !== 'PREVIEW' || !rawRows.length || !termCol || !meaningCol) return null;
+    return validateTeluguDataset(rawRows, termCol, meaningCol);
+  }, [stage, rawRows, termCol, meaningCol]);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -69,6 +76,9 @@ export default function UploadZone() {
       alert('Please select both Term and Meaning columns.');
       return;
     }
+    if (validationResult && !validationResult.valid) {
+      return;
+    }
     processData({ term: termCol, meaning: meaningCol });
   };
 
@@ -85,6 +95,7 @@ export default function UploadZone() {
   if (stage === 'PREVIEW') {
     const headers = rawRows.length > 0 ? Object.keys(rawRows[0]) : [];
     const previewRows = rawRows.slice(0, 10);
+    const isInvalid = Boolean(validationResult && !validationResult.valid);
 
     return (
       <div className="workspace" style={{ animation: 'fadeIn 0.3s ease-out', maxWidth: '900px', margin: '0 auto' }}>
@@ -95,10 +106,49 @@ export default function UploadZone() {
               File: <strong>{file?.name}</strong> ({rawRows.length} total rows)
             </p>
           </div>
-          <button className="btn btn-primary" onClick={startProcessing} style={{ padding: '0.75rem 1.5rem' }}>
+          <button 
+            className="btn btn-primary" 
+            onClick={startProcessing} 
+            disabled={isInvalid}
+            style={{ padding: '0.75rem 1.5rem', opacity: isInvalid ? 0.5 : 1, cursor: isInvalid ? 'not-allowed' : 'pointer' }}
+          >
             <PlayCircle size={18} /> Process Excel
           </button>
         </div>
+
+        {validationResult && (
+          <div className="mapping-card" style={{ 
+            background: isInvalid ? 'rgba(239, 68, 68, 0.05)' : 'rgba(34, 197, 94, 0.05)', 
+            padding: '1.5rem', 
+            borderRadius: '12px', 
+            marginBottom: '2rem', 
+            border: `1px solid ${isInvalid ? 'var(--color-danger)' : '#22c55e'}` 
+          }}>
+            <h3 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: isInvalid ? 'var(--color-danger)' : '#15803d' }}>
+              {isInvalid ? <AlertCircle size={20} /> : <CheckCircle size={20} />}
+              Language Validation
+            </h3>
+            {isInvalid ? (
+              <div>
+                <p style={{ color: 'var(--color-danger)', fontWeight: 500, marginBottom: '0.5rem' }}>
+                  Non-Telugu text was detected in this Excel file. Please upload a Telugu-only dataset.
+                </p>
+                <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>
+                  Error found in Row {validationResult.invalidCells[0].row}, Column "{validationResult.invalidCells[0].col}": <strong>"{validationResult.invalidCells[0].value}"</strong>
+                </p>
+              </div>
+            ) : (
+              <p style={{ color: '#15803d' }}>✓ Telugu-only dataset verified.</p>
+            )}
+          </div>
+        )}
+
+        {appError && (
+          <div className="error-message" style={{ marginBottom: '2rem' }}>
+            <AlertCircle size={20} />
+            <span>{appError}</span>
+          </div>
+        )}
 
         <div className="mapping-card" style={{ background: 'var(--color-bg)', padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem', border: '1px solid var(--color-border)' }}>
           <h3 style={{ marginBottom: '1rem', color: 'var(--color-text)' }}>Verify Columns</h3>
@@ -203,10 +253,10 @@ export default function UploadZone() {
         </div>
       </div>
 
-      {error && (
+      {appError && (
         <div className="error-message">
           <AlertCircle size={20} />
-          <span>{error}</span>
+          <span>{appError}</span>
         </div>
       )}
     </div>

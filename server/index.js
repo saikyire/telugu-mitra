@@ -49,6 +49,20 @@ app.post('/api/export-sessions', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
+    // --- STRICT TELUGU LANGUAGE VALIDATION ---
+    const foreignLetterRegex = /(?=[^\u0C00-\u0C7F])\p{L}/u;
+    for (const record of records) {
+      const term = record.term || '';
+      const meaning = record.meaning || '';
+      
+      if (term && foreignLetterRegex.test(term)) {
+        return res.status(400).json({ error: 'TeluguMitra accepts Telugu-language datasets only. Non-Telugu text detected in term: ' + term });
+      }
+      if (meaning && foreignLetterRegex.test(meaning)) {
+        return res.status(400).json({ error: 'TeluguMitra accepts Telugu-language datasets only. Non-Telugu text detected in meaning: ' + meaning });
+      }
+    }
+
     const newSession = new ExportSession({
       userId: req.user._id,
       filename,

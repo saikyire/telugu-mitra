@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { ParsedRow } from '../types';
+import { validateTeluguDataset } from './languageValidator';
 
 /**
  * Parses an Excel file and returns an array of row objects.
@@ -58,6 +59,13 @@ export const parseExcelFile = (file: File, raw: boolean = false): Promise<any[]>
 
         if (!termCol || !meaningCol) {
           throw new Error('Could not identify Term and Meaning columns.');
+        }
+
+        // --- STRICT TELUGU LANGUAGE VALIDATION ---
+        const validation = validateTeluguDataset(jsonData, termCol, meaningCol);
+        if (!validation.valid) {
+          const firstError = validation.invalidCells[0];
+          throw new Error(`Non-Telugu text was detected in this Excel file (Row ${firstError.row}, Column "${firstError.col}"). Please upload a Telugu-only dataset.`);
         }
 
         jsonData.forEach((row: any, index) => {

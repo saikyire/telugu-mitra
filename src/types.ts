@@ -11,17 +11,18 @@ export type RecordStatus =
 
 export interface ParsedRow {
   id: string;
-  originalRow: Record<string, any>;
-  originalEntry: string;
+  originalRowNumber?: number;
+  originalRow?: Record<string, any>;
+  originalEntry?: string;
   term: string;
   meaning: string;
-  normalizedTerm: string;
-  normalizedMeaning: string;
+  normalizedTerm?: string;
+  normalizedMeaning?: string;
   status: RecordStatus;
-  duplicateType: DuplicateType;
-  confidence: number;
+  duplicateType?: DuplicateType;
+  confidence?: number;
   duplicateOfId?: string | null;
-  isValid: boolean;
+  isValid?: boolean;
   groupId?: string;
 }
 

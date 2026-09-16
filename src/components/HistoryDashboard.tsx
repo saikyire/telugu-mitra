@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { History, FileText, CheckCircle2, Trash2, Calendar, AlertCircle } from 'lucide-react';
+import { useApp } from '../AppContext';
 import FooterBanner from './FooterBanner';
 
 interface ExportSession {
@@ -12,6 +13,7 @@ interface ExportSession {
 }
 
 export default function HistoryDashboard() {
+  const { loadSession } = useApp();
   const [sessions, setSessions] = useState<ExportSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +92,7 @@ export default function HistoryDashboard() {
                   <th>ORIGINAL</th>
                   <th>REMOVED</th>
                   <th>FINAL CLEAN</th>
+                  <th>ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
@@ -116,6 +119,34 @@ export default function HistoryDashboard() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                         <CheckCircle2 size={14} />
                         {session.finalCleanRecords}
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button 
+                          className="btn btn-outline"
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
+                          onClick={() => loadSession(session._id)}
+                        >
+                          View
+                        </button>
+                        <button 
+                          className="btn btn-outline"
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', color: 'var(--color-error)', borderColor: 'var(--color-error)' }}
+                          onClick={async () => {
+                            if(confirm('Are you sure you want to delete this session?')) {
+                              try {
+                                const apiUrl = import.meta.env.VITE_API_URL || '';
+                                await fetch(`${apiUrl}/api/export-sessions/${session._id}`, { method: 'DELETE' });
+                                fetchHistory();
+                              } catch(e) {
+                                console.error(e);
+                              }
+                            }
+                          }}
+                        >
+                          Delete
+                        </button>
                       </div>
                     </td>
                   </tr>

@@ -1,38 +1,28 @@
 import { useState } from 'react';
 import { useApp } from '../AppContext';
-import { exportToExcel } from '../utils/exportToExcel';
-import FooterBanner from './FooterBanner';
 import { 
-  Download, 
-  Search, 
-  AlertCircle, 
   CheckCircle2, 
-  RotateCcw,
-  FileText,
-  Trash2,
-  FileCheck2,
-  ShieldCheck,
-  Trophy,
-  ChevronLeft,
-  ChevronRight
+  Download, 
+  Search,
+  Filter,
+  AlertCircle
 } from 'lucide-react';
+import { exportToExcel } from '../utils/exportToExcel';
 
 export default function ResultsDashboard() {
-  const { file, rows, stats, setStage } = useApp();
+  const { rows, stats, file, viewingSavedSession, sessionFilename } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'REMOVED' | 'CLEAN' | 'SUMMARY'>('REMOVED');
-  const [filterReason, setFilterReason] = useState('ALL');
-  const [sortOption, setSortOption] = useState('TERM');
-  const [exportError, setExportError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const rowsPerPage = 5;
+  const [filter, setFilter] = useState<'ALL' | 'CLEAN' | 'REMOVED'>('ALL');
+  const [isExporting, setIsExporting] = useState(false);
 
+  // If we have no stats or rows, it means the app was refreshed on the results page.
   if (!stats || !rows || rows.length === 0) {
     return (
-      <div className="empty-state workspace">
+      <div className="empty-state workspace" style={{ marginTop: '2rem' }}>
+        <AlertCircle size={32} style={{ color: 'var(--color-text-muted)', marginBottom: '1rem' }} />
         <h3>No records found</h3>
         <p>Try uploading a new Excel file to begin processing.</p>
-        <button className="btn btn-primary" style={{ marginTop: 'var(--space-md)' }} onClick={() => setStage('UPLOAD')}>
+        <button className="btn btn-primary" style={{ marginTop: '1.5rem' }} onClick={() => window.location.reload()}>
           Go to Upload
         </button>
       </div>
@@ -40,314 +30,201 @@ export default function ResultsDashboard() {
   }
 
   const handleExport = async () => {
-    setExportError(null);
-    if (stats.finalDuplicateCount > 0) {
-      setExportError('Export blocked: Validation failed. The final dataset still contains duplicates.');
-      return;
-    }
-    
     try {
-      // 1. Export Excel Locally
-      exportToExcel(rows, stats, file?.name || 'export');
+      setIsExporting(true);
+      
+      // Strict Validation Check
+      if (stats.finalDuplicateCount > 0) {
+        alert('Final validation detected duplicate records. Export has been temporarily disabled.');
+        return;
+      }
+      
+      // If we are just viewing a saved session, we don't need to re-save to DB.
+      if (!viewingSavedSession) {
+        const apiUrl = import.meta.env.VITE_API_URL || '';
+        
+        // Save to DB
+        const response = await fetch(`${apiUrl}/api/export-sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filename: file?.name || 'export',
+            stats,
+            records: rows.filter(r => r.status === 'UNIQUE')
+          })
+        });
 
-      // 2. Save to Database
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${apiUrl}/api/export-sessions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          filename: file?.name || 'export',
-          stats,
-          records: rows.filter(r => r.status === 'UNIQUE') // only save the clean records
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to save to database');
+        if (!response.ok) {
+          console.error('Failed to save session to history');
+        }
       }
 
-      // Note: In a real app we'd add a success toast here
+      // Generate the Excel file
+      const originalFilename = viewingSavedSession ? sessionFilename : (file?.name || 'export');
+      const cleanFilename = `TeluguMitra_Clean_${originalFilename.replace('.xlsx', '').replace('.xls', '')}.xlsx`;
+      
+      exportToExcel(rows, stats, cleanFilename); // Passing stats to support the Summary sheet if implemented
+      
+      if (!viewingSavedSession) {
+        alert('File exported successfully and saved to History!');
+      } else {
+        alert('File exported successfully!');
+      }
     } catch (err) {
-      setExportError('Export succeeded, but failed to save records to the database.');
+      console.error('Export failed:', err);
+      alert('Failed to export Excel file. Please try again.');
+    } finally {
+      setIsExporting(false);
     }
   };
 
-  const getDuplicateReason = (type: string) => {
-    switch (type) {
-      case 'EXACT': return 'Exact Match';
-      case 'FORMATTING': return 'Formatting Differences';
-      default: return '-';
+  const filteredRows = rows.filter(row => {
+    // 1. Apply status filter
+    if (filter === 'CLEAN' && row.status !== 'UNIQUE') return false;
+    if (filter === 'REMOVED' && row.status === 'UNIQUE') return false;
+    
+    // 2. Apply search filter (search both term and meaning)
+    if (searchTerm) {
+      const term = (row.term || '').toLowerCase();
+      const meaning = (row.meaning || '').toLowerCase();
+      const search = searchTerm.toLowerCase();
+      
+      if (!term.includes(search) && !meaning.includes(search)) {
+        return false;
+      }
     }
-  };
-
-  // 1. Filter by Tab
-  let processedRows = rows.filter(row => {
-    if (activeTab === 'REMOVED') return row.status.includes('DUPLICATE');
-    if (activeTab === 'CLEAN') return row.status === 'UNIQUE';
-    return false;
+    
+    return true;
   });
-
-  // 2. Filter by Search
-  if (searchTerm) {
-    processedRows = processedRows.filter(row => 
-      row.term.includes(searchTerm) || row.meaning.includes(searchTerm)
-    );
-  }
-
-  // 3. Filter by Reason (if in Removed tab)
-  if (activeTab === 'REMOVED' && filterReason !== 'ALL') {
-    processedRows = processedRows.filter(row => row.duplicateType === filterReason);
-  }
-
-  // 4. Sort
-  if (sortOption === 'TERM') {
-    processedRows.sort((a, b) => a.term.localeCompare(b.term));
-  }
-
-  // 5. Pagination
-  const totalPages = Math.ceil(processedRows.length / rowsPerPage);
-  const paginatedRows = processedRows.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
-
-  const removedCount = rows.filter(r => r.status.includes('DUPLICATE')).length;
-  const cleanCount = rows.filter(r => r.status === 'UNIQUE').length;
 
   return (
     <div style={{ animation: 'fadeIn 0.3s ease-out' }}>
-      
-      {/* Hero Section */}
       <div className="dashboard-hero">
         <div className="hero-left">
           <div className="success-icon-large">
             <CheckCircle2 size={32} />
           </div>
           <div className="hero-titles">
-            <h2>Processing Complete</h2>
-            <p><strong>{file?.name || 'File.xlsx'}</strong> has been processed successfully.</p>
+            <h2>{viewingSavedSession ? 'Saved Session Details' : 'Processing Complete'}</h2>
+            <p>
+              File: <strong>{viewingSavedSession ? sessionFilename : file?.name}</strong> • 
+              {stats.originalRecords.toLocaleString()} records analyzed
+            </p>
           </div>
         </div>
+        
         <div className="hero-actions">
-          <button className="btn btn-outline" onClick={() => setStage('UPLOAD')}>
-            <RotateCcw size={16} /> Process Another File
-          </button>
           <button 
             className="btn btn-primary" 
             onClick={handleExport}
-            disabled={stats.finalDuplicateCount > 0}
-            style={{ padding: '0.5rem 1.5rem' }}
+            disabled={isExporting || stats.finalDuplicateCount > 0}
           >
-            <Download size={16} /> Export Clean Excel
+            <Download size={18} /> 
+            {isExporting ? 'Exporting...' : 'Export Clean Excel'}
           </button>
         </div>
       </div>
 
-      {exportError && (
-        <div className="error-alert">
-          <AlertCircle size={20} />
-          <span>{exportError}</span>
-        </div>
-      )}
-
-      {/* Success Banner */}
-      {stats.finalDuplicateCount === 0 && (
-        <div className="success-banner">
-          <div className="success-banner-content">
-            <div className="success-banner-icon">
-              <CheckCircle2 size={24} />
-            </div>
-            <div className="success-banner-text">
-              <h3>Duplicate-free Excel generated successfully!</h3>
-              <p>All detected duplicates have been removed. The output file contains zero duplicates.</p>
-            </div>
-          </div>
-          <div className="success-banner-graphic">
-            <Trophy size={28} color="#eab308" />
-            <span>Well done!</span>
-          </div>
-        </div>
-      )}
-
-      {/* Stats Grid */}
-      <div className="stats-grid">
-        <div className="stat-card orange">
-          <div className="stat-icon orange"><FileText size={20} /></div>
-          <div className="stat-content">
+      <div className="workspace" style={{ marginTop: 'var(--space-xl)' }}>
+        {/* Processing Summary */}
+        <h3 style={{ marginBottom: '1rem', color: 'var(--color-text)' }}>Processing Summary</h3>
+        <div className="stats-grid">
+          <div className="stat-card">
             <div className="stat-title">Original Records</div>
             <div className="stat-value">{stats.originalRecords}</div>
-            <div className="stat-subtext">Total rows in uploaded file</div>
           </div>
-        </div>
-        <div className="stat-card red">
-          <div className="stat-icon red"><Trash2 size={20} /></div>
-          <div className="stat-content">
+          <div className="stat-card red">
             <div className="stat-title">Duplicates Removed</div>
             <div className="stat-value">{stats.duplicatesRemoved}</div>
-            <div className="stat-subtext">Duplicate records filtered out</div>
           </div>
-        </div>
-        <div className="stat-card green">
-          <div className="stat-icon green"><FileCheck2 size={20} /></div>
-          <div className="stat-content">
+          <div className="stat-card green">
             <div className="stat-title">Final Clean Records</div>
             <div className="stat-value">{stats.finalCleanRecords}</div>
-            <div className="stat-subtext">Unique records in output</div>
           </div>
-        </div>
-        <div className="stat-card blue">
-          <div className="stat-icon blue"><ShieldCheck size={20} /></div>
-          <div className="stat-content">
+          <div className={`stat-card ${stats.finalDuplicateCount > 0 ? 'red' : 'green'}`}>
             <div className="stat-title">Final Duplicate Count</div>
             <div className="stat-value">{stats.finalDuplicateCount}</div>
-            <div className="stat-subtext">Verified after re-check ⓘ</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="tabs">
-        <button 
-          className={`tab ${activeTab === 'REMOVED' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('REMOVED'); setCurrentPage(1); }}
-        >
-          <FileText size={16} /> Removed Duplicates ({removedCount})
-        </button>
-        <button 
-          className={`tab ${activeTab === 'CLEAN' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('CLEAN'); setCurrentPage(1); }}
-        >
-          <RotateCcw size={16} style={{ transform: 'rotate(90deg)' }} /> Clean Records ({cleanCount})
-        </button>
-        <button 
-          className={`tab ${activeTab === 'SUMMARY' ? 'active' : ''}`}
-          onClick={() => setActiveTab('SUMMARY')}
-        >
-          <AlertCircle size={16} /> Processing Summary
-        </button>
-      </div>
-
-      {/* Workspace */}
-      <div className="workspace">
-        {activeTab !== 'SUMMARY' ? (
-          <>
-            <div className="workspace-toolbar">
-              <div className="search-input-wrapper">
-                <Search className="search-icon" size={18} />
-                <input 
-                  type="text" 
-                  placeholder="Search terms or meanings (supports Telugu)..." 
-                  value={searchTerm}
-                  onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                  className="search-input telugu-text"
-                />
-              </div>
-              
-              {activeTab === 'REMOVED' && (
-                <select 
-                  value={filterReason} 
-                  onChange={(e) => { setFilterReason(e.target.value); setCurrentPage(1); }}
-                  className="filter-select"
-                >
-                  <option value="ALL">All Reasons</option>
-                  <option value="EXACT">Exact Match</option>
-                  <option value="FORMATTING">Formatting Differences</option>
-                </select>
-              )}
-              
-              <select 
-                value={sortOption} 
-                onChange={(e) => setSortOption(e.target.value)}
-                className="filter-select"
-              >
-                <option value="TERM">Sort by Term</option>
-                <option value="ORIGINAL">Original Order</option>
-              </select>
-            </div>
-
-            <div className="table-wrapper">
-              {paginatedRows.length > 0 ? (
-                <table>
-                  <thead>
-                    <tr>
-                      <th style={{ width: '50px' }}>#</th>
-                      <th style={{ width: '20%' }}>TERM</th>
-                      <th style={{ width: '30%' }}>MEANING</th>
-                      <th>STATUS</th>
-                      <th>REASON</th>
-                      <th>MATCHED WITH</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedRows.map((row, index) => (
-                      <tr key={row.id}>
-                        <td style={{ color: 'var(--color-text-muted)' }}>
-                          {(currentPage - 1) * rowsPerPage + index + 1}
-                        </td>
-                        <td className="telugu-text font-bold">{row.term}</td>
-                        <td className="telugu-text">{row.meaning}</td>
-                        <td>
-                          {row.status.includes('DUPLICATE') ? (
-                            <span className="badge badge-error">Duplicate Removed</span>
-                          ) : (
-                            <span className="badge badge-success" style={{ background: '#dcfce7', color: '#166534' }}>Clean Record</span>
-                          )}
-                        </td>
-                        <td style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
-                          {row.status.includes('DUPLICATE') ? getDuplicateReason(row.duplicateType) : '-'}
-                        </td>
-                        <td className="telugu-text" style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
-                          {row.duplicateOfId ? rows.find(r => r.id === row.duplicateOfId)?.term : '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div className="empty-state">
-                  <h3>No records match your criteria</h3>
-                  <p>Try changing your search or filter.</p>
-                </div>
-              )}
-            </div>
-            
-            {/* Pagination Controls */}
-            {processedRows.length > 0 && (
-              <div className="pagination">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span>Rows per page:</span>
-                  <select disabled className="filter-select" style={{ padding: '0.25rem 2rem 0.25rem 0.5rem' }}>
-                    <option>{rowsPerPage}</option>
-                  </select>
-                </div>
-                <div className="pagination-controls">
-                  <span>
-                    {(currentPage - 1) * rowsPerPage + 1}–{Math.min(currentPage * rowsPerPage, processedRows.length)} of {processedRows.length}
-                  </span>
-                  <button 
-                    className="page-btn" 
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(p => p - 1)}
-                  >
-                    <ChevronLeft size={18} />
-                  </button>
-                  <button 
-                    className="page-btn" 
-                    disabled={currentPage === totalPages || totalPages === 0}
-                    onClick={() => setCurrentPage(p => p + 1)}
-                  >
-                    <ChevronRight size={18} />
-                  </button>
-                </div>
+            {stats.finalDuplicateCount > 0 && (
+              <div style={{ color: 'var(--color-error)', fontSize: '0.8rem', marginTop: '0.5rem' }}>
+                Export Disabled
               </div>
             )}
-          </>
-        ) : (
-          <div className="empty-state">
-            <h3>Processing Summary</h3>
-            <p>File parsed and cleaned successfully. Click "Export Clean Excel" to download.</p>
           </div>
-        )}
-      </div>
+        </div>
 
-      <FooterBanner />
+        {/* Processed Records */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3rem', marginBottom: '1rem' }}>
+          <h3 style={{ color: 'var(--color-text)', margin: 0 }}>Processed Records</h3>
+          
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <div style={{ position: 'relative' }}>
+              <Search size={16} style={{ position: 'absolute', left: '10px', top: '10px', color: 'var(--color-text-muted)' }} />
+              <input 
+                type="text" 
+                placeholder="Search terms or meanings..." 
+                className="select-input"
+                style={{ paddingLeft: '34px', width: '250px' }}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Filter size={16} style={{ color: 'var(--color-text-muted)' }} />
+              <select 
+                className="select-input"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value as any)}
+              >
+                <option value="ALL">All Records</option>
+                <option value="CLEAN">Clean Records</option>
+                <option value="REMOVED">Removed Duplicates</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th style={{ width: '60px' }}>ROW</th>
+                <th style={{ width: '30%' }}>TERM</th>
+                <th style={{ width: '40%' }}>MEANING</th>
+                <th style={{ width: '20%' }}>STATUS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRows.slice(0, 100).map((row, index) => (
+                <tr key={index}>
+                  <td style={{ color: 'var(--color-text-muted)' }}>{row.originalRowNumber || index + 2}</td>
+                  <td className="font-bold">{row.term}</td>
+                  <td>{row.meaning}</td>
+                  <td>
+                    {row.status === 'UNIQUE' ? (
+                      <span className="badge badge-success">Clean</span>
+                    ) : (
+                      <span className="badge badge-error">Removed</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {filteredRows.length > 100 && (
+                <tr>
+                  <td colSpan={4} style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                    Showing first 100 records out of {filteredRows.length} matches.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          {filteredRows.length === 0 && (
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+              No records found matching your search/filters.
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

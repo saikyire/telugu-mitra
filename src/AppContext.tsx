@@ -4,28 +4,38 @@ import type { ParsedRow, ProcessingStats } from './types';
 import { parseExcelFile } from './utils/excelParser';
 import { detectDuplicates } from './utils/duplicateDetector';
 
+export type AppStage = 'DASHBOARD' | 'UPLOAD' | 'PREVIEW' | 'PROCESSING' | 'RESULTS' | 'HISTORY' | 'SETTINGS' | 'HELP';
+
 interface AppState {
   file: File | null;
+  rawRows: any[]; // Used for preview
   isProcessing: boolean;
   rows: ParsedRow[];
   stats: ProcessingStats | null;
   error: string | null;
-  stage: 'UPLOAD' | 'PROCESSING' | 'RESULTS' | 'HISTORY';
+  stage: AppStage;
+  viewingSavedSession: boolean; // Flag to indicate if we are viewing a historic session
+  sessionFilename: string;
 }
 
 interface AppContextType extends AppState {
-  processFile: (file: File) => Promise<void>;
+  setFileAndPreview: (file: File) => Promise<void>;
+  processData: (columnMap: { term: string, meaning: string }) => Promise<void>;
+  loadSession: (sessionId: string) => Promise<void>;
   resetApp: () => void;
-  setStage: (stage: 'UPLOAD' | 'PROCESSING' | 'RESULTS' | 'HISTORY') => void;
+  setStage: (stage: AppStage) => void;
 }
 
 const initialState: AppState = {
   file: null,
+  rawRows: [],
   isProcessing: false,
   rows: [],
   stats: null,
   error: null,
-  stage: 'UPLOAD',
+  stage: 'DASHBOARD',
+  viewingSavedSession: false,
+  sessionFilename: ''
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -33,45 +43,89 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(initialState);
 
-  const processFile = async (file: File) => {
-    setState({ ...initialState, file, isProcessing: true, stage: 'PROCESSING' });
+  const setFileAndPreview = async (file: File) => {
+    setState(prev => ({ ...prev, file, isProcessing: true, error: null }));
+    try {
+      // Just extract raw data for preview
+      const rawRows = await parseExcelFile(file, true); // true = raw mode (we need to implement this flag in excelParser)
+      setState(prev => ({ ...prev, rawRows, isProcessing: false, stage: 'PREVIEW' }));
+    } catch (err: any) {
+      setState(prev => ({ ...prev, isProcessing: false, error: err.message, stage: 'UPLOAD' }));
+    }
+  };
+
+  const processData = async (columnMap: { term: string, meaning: string }) => {
+    setState(prev => ({ ...prev, isProcessing: true, stage: 'PROCESSING', error: null }));
     try {
       // Simulate slight delay for UX
-      await new Promise(r => setTimeout(r, 800));
+      await new Promise(r => setTimeout(r, 1500));
       
-      const parsedRows = await parseExcelFile(file);
-      
-      await new Promise(r => setTimeout(r, 800));
-      const { processedRows, stats } = detectDuplicates(parsedRows);
+      // Map columns based on user selection
+      const mappedRows: ParsedRow[] = state.rawRows
+        .filter(row => row[columnMap.term] && String(row[columnMap.term]).trim() !== '')
+        .map((row, index) => ({
+          id: `row-${index}`,
+          originalRowNumber: index + 2,
+          term: String(row[columnMap.term] || '').trim(),
+          meaning: String(row[columnMap.meaning] || '').trim(),
+          status: 'UNIQUE'
+        }));
+
+      const { processedRows, stats } = detectDuplicates(mappedRows);
 
       setState(prev => ({
         ...prev,
         isProcessing: false,
         rows: processedRows,
         stats,
-        stage: 'RESULTS'
+        stage: 'RESULTS',
+        viewingSavedSession: false,
+        sessionFilename: state.file?.name || 'export.xlsx'
       }));
     } catch (err: any) {
-      setState(prev => ({
-        ...prev,
-        isProcessing: false,
-        error: err.message || 'Failed to process the Excel file. Please verify it is a valid format.',
-        stage: 'UPLOAD'
-      }));
+      setState(prev => ({ ...prev, isProcessing: false, error: err.message, stage: 'PREVIEW' }));
     }
   };
 
-
-  const resetApp = () => {
-    setState(initialState);
+  const loadSession = async (sessionId: string) => {
+    setState(prev => ({ ...prev, isProcessing: true, stage: 'PROCESSING' }));
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiUrl}/api/export-sessions/${sessionId}`);
+      if (!res.ok) throw new Error('Failed to load session');
+      const data = await res.json();
+      
+      setState(prev => ({
+        ...prev,
+        isProcessing: false,
+        rows: data.records,
+        stats: {
+          originalRecords: data.originalRecords,
+          duplicatesRemoved: data.duplicatesRemoved,
+          finalCleanRecords: data.finalCleanRecords,
+          finalDuplicateCount: 0,
+          successfullyParsed: data.originalRecords,
+          invalidRows: 0
+        },
+        stage: 'RESULTS',
+        viewingSavedSession: true,
+        sessionFilename: data.filename
+      }));
+    } catch (err: any) {
+      setState(prev => ({ ...prev, isProcessing: false, error: err.message, stage: 'HISTORY' }));
+    }
   };
 
-  const setStage = (stage: 'UPLOAD' | 'PROCESSING' | 'RESULTS' | 'HISTORY') => {
+  const resetApp = () => {
+    setState({ ...initialState, stage: 'UPLOAD' });
+  };
+
+  const setStage = (stage: AppStage) => {
     setState(prev => ({ ...prev, stage }));
   };
 
   return (
-    <AppContext.Provider value={{ ...state, processFile, resetApp, setStage }}>
+    <AppContext.Provider value={{ ...state, setFileAndPreview, processData, loadSession, resetApp, setStage }}>
       {children}
     </AppContext.Provider>
   );

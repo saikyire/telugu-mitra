@@ -66,6 +66,46 @@ app.get('/api/export-sessions', async (req, res) => {
   }
 });
 
+// 4. Get Global Stats
+app.get('/api/stats', async (req, res) => {
+  try {
+    await connectDB();
+    const sessions = await ExportSession.find().select('originalRecords duplicatesRemoved finalCleanRecords');
+    const stats = sessions.reduce((acc, curr) => ({
+      totalFiles: acc.totalFiles + 1,
+      totalRecords: acc.totalRecords + curr.originalRecords,
+      totalRemoved: acc.totalRemoved + curr.duplicatesRemoved,
+      totalClean: acc.totalClean + curr.finalCleanRecords
+    }), { totalFiles: 0, totalRecords: 0, totalRemoved: 0, totalClean: 0 });
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+// 5. Get Specific Session (with records)
+app.get('/api/export-sessions/:id', async (req, res) => {
+  try {
+    await connectDB();
+    const session = await ExportSession.findById(req.params.id);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    res.json(session);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch session details' });
+  }
+});
+
+// 6. Delete Specific Session
+app.delete('/api/export-sessions/:id', async (req, res) => {
+  try {
+    await connectDB();
+    await ExportSession.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Session deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete session' });
+  }
+});
+
 // Start Server (checking import.meta.url for ESM equivalent of require.main === module)
 import { fileURLToPath } from 'url';
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

@@ -1,98 +1,214 @@
-import React, { useCallback, useState } from 'react';
-import { UploadCloud, FileType, AlertCircle } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { Upload, FileUp, AlertCircle, PlayCircle } from 'lucide-react';
 import { useApp } from '../AppContext';
 
 export default function UploadZone() {
-  const { processFile, error } = useApp();
+  const { stage, isProcessing, error, setFileAndPreview, file, rawRows, processData } = useApp();
   const [isDragging, setIsDragging] = useState(false);
-  const [localError, setLocalError] = useState<string | null>(null);
+  
+  // Mapping state
+  const [termCol, setTermCol] = useState('');
+  const [meaningCol, setMeaningCol] = useState('');
 
-  const onDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
-
-  const onDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  }, []);
-
-  const validateAndProcess = (file: File) => {
-    if (!file) return;
-    setLocalError(null);
+  // Setup initial mapping guess when entering PREVIEW stage
+  if (stage === 'PREVIEW' && rawRows.length > 0 && !termCol && !meaningCol) {
+    const firstRow = rawRows[0];
+    const keys = Object.keys(firstRow);
+    let t = '', m = '';
     
-    // Check extension
-    const name = file.name.toLowerCase();
-    if (!name.endsWith('.xlsx') && !name.endsWith('.xls')) {
-      setLocalError('Please upload a valid Excel file (.xlsx or .xls)');
+    for (const key of keys) {
+      const k = key.toLowerCase();
+      if (k.includes('term') || k.includes('word') || k.includes('పదం')) t = key;
+      if (k.includes('meaning') || k.includes('def') || k.includes('అర్థం')) m = key;
+    }
+    if (!t && keys.length >= 1) t = keys[0];
+    if (!m && keys.length >= 2) m = keys[1];
+    
+    if (t) setTermCol(t);
+    if (m) setMeaningCol(m);
+  }
+
+  const handleDrag = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setIsDragging(true);
+    } else if (e.type === 'dragleave') {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      validateAndSetFile(e.dataTransfer.files[0]);
+    }
+  }, []);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    if (e.target.files && e.target.files[0]) {
+      validateAndSetFile(e.target.files[0]);
+    }
+  };
+
+  const validateAndSetFile = (uploadedFile: File) => {
+    const ext = uploadedFile.name.split('.').pop()?.toLowerCase();
+    if (ext !== 'xlsx' && ext !== 'xls') {
+      alert('Please upload a valid Excel file (.xlsx or .xls)');
       return;
     }
-
-    processFile(file);
+    setFileAndPreview(uploadedFile);
   };
 
-  const onDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      validateAndProcess(files[0]);
+  const startProcessing = () => {
+    if (!termCol || !meaningCol) {
+      alert('Please select both Term and Meaning columns.');
+      return;
     }
-  }, [processFile]);
-
-  const onFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      validateAndProcess(e.target.files[0]);
-    }
+    processData({ term: termCol, meaning: meaningCol });
   };
 
-  const displayError = localError || error;
+  if (stage === 'PROCESSING' || isProcessing) {
+    return (
+      <div className="processing-screen" style={{ animation: 'fadeIn 0.3s ease-out' }}>
+        <div className="spinner"></div>
+        <h2 className="title">Processing your Excel file...</h2>
+        <p className="subtitle">Reading records, detecting duplicates, normalizing Telugu text...</p>
+      </div>
+    );
+  }
+
+  if (stage === 'PREVIEW') {
+    const headers = rawRows.length > 0 ? Object.keys(rawRows[0]) : [];
+    const previewRows = rawRows.slice(0, 10);
+
+    return (
+      <div className="workspace" style={{ animation: 'fadeIn 0.3s ease-out', maxWidth: '900px', margin: '0 auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2rem' }}>
+          <div>
+            <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem', color: 'var(--color-text)' }}>Preview & Map Columns</h2>
+            <p style={{ color: 'var(--color-text-muted)' }}>
+              File: <strong>{file?.name}</strong> ({rawRows.length} total rows)
+            </p>
+          </div>
+          <button className="btn btn-primary" onClick={startProcessing} style={{ padding: '0.75rem 1.5rem' }}>
+            <PlayCircle size={18} /> Process Excel
+          </button>
+        </div>
+
+        <div className="mapping-card" style={{ background: 'var(--color-bg)', padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem', border: '1px solid var(--color-border)' }}>
+          <h3 style={{ marginBottom: '1rem', color: 'var(--color-text)' }}>Verify Columns</h3>
+          <p style={{ color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
+            We've tried to automatically detect the Term and Meaning columns. If they are incorrect, please select them below.
+          </p>
+          
+          <div style={{ display: 'flex', gap: '2rem' }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Term Column:</label>
+              <select 
+                className="select-input" 
+                value={termCol} 
+                onChange={(e) => setTermCol(e.target.value)}
+                style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--color-border)' }}
+              >
+                <option value="">-- Select Column --</option>
+                {headers.map(h => <option key={h} value={h}>{h}</option>)}
+              </select>
+            </div>
+            
+            <div style={{ flex: 1 }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Meaning Column:</label>
+              <select 
+                className="select-input" 
+                value={meaningCol} 
+                onChange={(e) => setMeaningCol(e.target.value)}
+                style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--color-border)' }}
+              >
+                <option value="">-- Select Column --</option>
+                {headers.map(h => <option key={h} value={h}>{h}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <h3 style={{ marginBottom: '1rem', color: 'var(--color-text)' }}>Data Preview (First 10 rows)</h3>
+        <div className="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th style={{ width: '60px' }}>ROW</th>
+                {headers.map(h => (
+                  <th key={h} style={{ 
+                    backgroundColor: h === termCol || h === meaningCol ? 'var(--color-primary-light)' : 'transparent',
+                    color: h === termCol || h === meaningCol ? 'var(--color-primary-dark)' : 'inherit'
+                  }}>
+                    {h}
+                    {h === termCol && ' (Term)'}
+                    {h === meaningCol && ' (Meaning)'}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {previewRows.map((row, i) => (
+                <tr key={i}>
+                  <td style={{ color: 'var(--color-text-muted)' }}>{i + 2}</td>
+                  {headers.map(h => (
+                    <td key={h}>{row[h]}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="upload-container">
-      <div className="hero-section">
-        <h1 className="title">Telugu Excel Parser</h1>
-        <p className="subtitle">Clean, organize and process your Telugu Excel data.</p>
+    <div className="upload-container" style={{ animation: 'fadeIn 0.3s ease-out' }}>
+      <div className="upload-header">
+        <h1 className="title">Process New File</h1>
+        <p className="subtitle">Upload your Excel file to begin cleaning your Telugu dataset.</p>
       </div>
 
       <div 
-        className={`upload-zone card ${isDragging ? 'dragging' : ''}`}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDrop={onDrop}
+        className={`dropzone ${isDragging ? 'drag-active' : ''}`}
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
       >
-        <div className="upload-content">
-          <UploadCloud size={48} className="upload-icon" />
-          <h2>Upload your Excel file</h2>
-          <p>Drag & drop your file here</p>
-          <p className="or-divider">or</p>
-          <label className="btn btn-primary">
-            Browse Excel File
-            <input 
-              type="file" 
-              accept=".xlsx, .xls" 
-              onChange={onFileInput}
-              style={{ display: 'none' }}
-            />
-          </label>
-          <div className="supported-formats">
-            <FileType size={16} />
-            <span>XLSX / XLS supported</span>
+        <div className="dropzone-content">
+          <div className="icon-circle">
+            <Upload className="upload-icon" size={32} />
           </div>
+          <h3>Drag and drop your Excel file here or browse</h3>
+          <p>Supported formats: .xlsx, .xls</p>
+          
+          <input 
+            type="file" 
+            id="file-upload" 
+            className="file-input" 
+            accept=".xlsx, .xls"
+            onChange={handleChange}
+          />
+          <label htmlFor="file-upload" className="btn btn-primary" style={{ marginTop: '1.5rem', display: 'inline-flex' }}>
+            <FileUp size={18} style={{ marginRight: '8px' }} /> Browse Files
+          </label>
         </div>
       </div>
 
-      {displayError && (
-        <div className="error-alert">
+      {error && (
+        <div className="error-message">
           <AlertCircle size={20} />
-          <span>{displayError}</span>
+          <span>{error}</span>
         </div>
       )}
-
-      <div className="features">
-        <span>Secure</span> • <span>Fast</span> • <span>Unicode Ready</span>
-      </div>
     </div>
   );
 }

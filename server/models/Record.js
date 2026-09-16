@@ -13,12 +13,15 @@ const recordSchema = new mongoose.Schema({
 
 // Export History Schema (optional, groups records together)
 const exportSessionSchema = new mongoose.Schema({
-  filename: { type: String, required: true },
+  filename: { type: String, required: true, index: true },
   originalRecords: { type: Number, required: true },
   duplicatesRemoved: { type: Number, required: true },
   finalCleanRecords: { type: Number, required: true },
   records: [recordSchema] // Embedded records for this specific upload
 }, { timestamps: true });
+
+// Add descending index on createdAt for faster history queries
+exportSessionSchema.index({ createdAt: -1 });
 
 const ExportSession = mongoose.model('ExportSession', exportSessionSchema);
 

@@ -1,12 +1,36 @@
 import { useApp, AppProvider } from './AppContext';
+import Sidebar from './components/Sidebar';
 import UploadZone from './components/UploadZone';
 import ResultsDashboard from './components/ResultsDashboard';
 import HistoryDashboard from './components/HistoryDashboard';
-import Sidebar from './components/Sidebar';
+import Dashboard from './components/Dashboard';
+import Settings from './components/Settings';
+import Help from './components/Help';
 import { Bell, ChevronDown } from 'lucide-react';
 
 function MainApp() {
   const { stage } = useApp();
+
+  const renderContent = () => {
+    switch (stage) {
+      case 'DASHBOARD':
+        return <Dashboard />;
+      case 'UPLOAD':
+      case 'PREVIEW':
+      case 'PROCESSING':
+        return <UploadZone />;
+      case 'RESULTS':
+        return <ResultsDashboard />;
+      case 'HISTORY':
+        return <HistoryDashboard />;
+      case 'SETTINGS':
+        return <Settings />;
+      case 'HELP':
+        return <Help />;
+      default:
+        return <Dashboard />;
+    }
+  };
 
   return (
     <div className="app-container">
@@ -30,16 +54,7 @@ function MainApp() {
         </header>
 
         <main className="main-content">
-          {stage === 'UPLOAD' && <UploadZone />}
-          {stage === 'PROCESSING' && (
-            <div className="processing-screen">
-              <div className="spinner"></div>
-              <h2 className="title">Analyzing File...</h2>
-              <p className="subtitle">Detecting duplicates and validating Telugu text</p>
-            </div>
-          )}
-          {stage === 'RESULTS' && <ResultsDashboard />}
-          {stage === 'HISTORY' && <HistoryDashboard />}
+          {renderContent()}
         </main>
       </div>
     </div>

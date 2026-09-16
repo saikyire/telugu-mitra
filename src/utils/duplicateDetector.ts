@@ -1,5 +1,7 @@
 import type { ParsedRow, ProcessingStats } from '../types';
 
+import { normalizeTeluguText } from './teluguNormalizer';
+
 function detectDuplicatesLogic(rows: ParsedRow[]): ParsedRow[] {
   const processedRows = [...rows];
   
@@ -11,16 +13,27 @@ function detectDuplicatesLogic(rows: ParsedRow[]): ParsedRow[] {
 
   for (let i = 0; i < processedRows.length; i++) {
     const row = processedRows[i];
-    if (!row.isValid) continue;
+    
+    // Dynamically calculate missing fields
+    row.normalizedTerm = normalizeTeluguText(row.term);
+    row.normalizedMeaning = normalizeTeluguText(row.meaning);
+    row.isValid = !!(row.term && row.meaning);
+
+    if (!row.isValid) {
+      row.status = 'INVALID';
+      continue;
+    }
 
     // Reset status initially to UNIQUE for the logic
     row.status = 'UNIQUE';
     row.duplicateType = 'NONE';
     row.confidence = 0;
 
+    const originalEntry = `${row.term}::${row.meaning}`;
+
     // 1. Exact Duplicate
-    if (exactMap.has(row.originalEntry)) {
-      const original = exactMap.get(row.originalEntry)!;
+    if (exactMap.has(originalEntry)) {
+      const original = exactMap.get(originalEntry)!;
       row.status = 'EXACT_DUPLICATE';
       row.duplicateType = 'EXACT';
       row.confidence = 100;
@@ -32,7 +45,7 @@ function detectDuplicatesLogic(rows: ParsedRow[]): ParsedRow[] {
       row.groupId = original.groupId;
       continue;
     }
-    exactMap.set(row.originalEntry, row);
+    exactMap.set(originalEntry, row);
 
     // 2. Formatting Duplicate
     const formattingKey = `${row.normalizedTerm}::${row.normalizedMeaning}`;
@@ -53,6 +66,7 @@ function detectDuplicatesLogic(rows: ParsedRow[]): ParsedRow[] {
 
     // 3. Different Meaning (Retain all variations)
     // According to the new rule, if it's not an exact or formatting duplicate, it is retained.
+    // Even if meanings are reordered, they stay separate (we DO NOT use normalizeAndSortMeaning).
     if (termMap.has(row.normalizedTerm)) {
       termMap.get(row.normalizedTerm)!.push(row);
     } else {

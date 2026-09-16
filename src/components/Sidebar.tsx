@@ -18,31 +18,37 @@ export default function Sidebar() {
 
       <nav className="sidebar-nav">
         <div 
-          className={`nav-item ${stage === 'RESULTS' ? 'active' : ''}`}
-          onClick={() => setStage('RESULTS')}
+          className={`nav-item ${stage === 'DASHBOARD' ? 'active' : ''}`} 
+          onClick={() => setStage('DASHBOARD')}
         >
           <LayoutDashboard size={20} />
           <span>Dashboard</span>
         </div>
         <div 
-          className={`nav-item ${stage === 'UPLOAD' ? 'active' : ''}`}
+          className={`nav-item ${['UPLOAD', 'PREVIEW', 'PROCESSING', 'RESULTS'].includes(stage) ? 'active' : ''}`} 
           onClick={() => setStage('UPLOAD')}
         >
           <FileUp size={20} />
           <span>Process File</span>
         </div>
         <div 
-          className={`nav-item ${stage === 'HISTORY' ? 'active' : ''}`}
+          className={`nav-item ${stage === 'HISTORY' ? 'active' : ''}`} 
           onClick={() => setStage('HISTORY')}
         >
           <History size={20} />
           <span>History</span>
         </div>
-        <div className="nav-item">
+        <div
+          className={`nav-item ${stage === 'SETTINGS' ? 'active' : ''}`}
+          onClick={() => setStage('SETTINGS')}
+        >
           <Settings size={20} />
           <span>Settings</span>
         </div>
-        <div className="nav-item">
+        <div 
+          className={`nav-item ${stage === 'HELP' ? 'active' : ''}`}
+          onClick={() => setStage('HELP')}
+        >
           <HelpCircle size={20} />
           <span>Help</span>
         </div>

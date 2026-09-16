@@ -7,9 +7,18 @@ import cors from 'cors';
 import { ExportSession } from './models/Record.js';
 import connectDB from './db.js';
 
+import cookieParser from 'cookie-parser';
+import { requireAuth } from './middleware/auth.js';
+import authRoutes from './routes/auth.js';
+
 const app = express();
-app.use(cors());
+// Enable credentials for CORS so cookies are sent
+app.use(cors({
+  origin: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:5173',
+  credentials: true
+}));
 app.use(express.json({ limit: '50mb' })); // Increased limit to support large arrays of records
+app.use(cookieParser());
 
 const PORT = process.env.PORT || 5000;
 
@@ -17,6 +26,8 @@ const PORT = process.env.PORT || 5000;
 connectDB().catch(console.error);
 
 // --- API Routes ---
+
+app.use('/api/auth', authRoutes);
 
 // 1. Healthcheck
 app.get('/api/health', (req, res) => {
@@ -28,8 +39,8 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// 2. Save new Export Session & Records
-app.post('/api/export-sessions', async (req, res) => {
+// 2. Save new Export Session & Records (PROTECTED)
+app.post('/api/export-sessions', requireAuth, async (req, res) => {
   try {
     await connectDB();
     const { filename, stats, records } = req.body;
@@ -39,11 +50,12 @@ app.post('/api/export-sessions', async (req, res) => {
     }
 
     const newSession = new ExportSession({
+      userId: req.user._id,
       filename,
       originalRecords: stats.originalRecords,
       duplicatesRemoved: stats.duplicatesRemoved,
       finalCleanRecords: stats.finalCleanRecords,
-      records: records, // Store the array of objects directly
+      records: records, 
     });
 
     const savedSession = await newSession.save();
@@ -54,23 +66,22 @@ app.post('/api/export-sessions', async (req, res) => {
   }
 });
 
-// 3. Get all Export Sessions (History)
-app.get('/api/export-sessions', async (req, res) => {
+// 3. Get all Export Sessions (History) (PROTECTED)
+app.get('/api/export-sessions', requireAuth, async (req, res) => {
   try {
     await connectDB();
-    // Return sessions without the large records array to save bandwidth on the list view
-    const sessions = await ExportSession.find().select('-records').sort({ createdAt: -1 });
+    const sessions = await ExportSession.find({ userId: req.user._id }).select('-records').sort({ createdAt: -1 });
     res.json(sessions);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch history' });
   }
 });
 
-// 4. Get Global Stats
-app.get('/api/stats', async (req, res) => {
+// 4. Get Global Stats (PROTECTED)
+app.get('/api/stats', requireAuth, async (req, res) => {
   try {
     await connectDB();
-    const sessions = await ExportSession.find().select('originalRecords duplicatesRemoved finalCleanRecords');
+    const sessions = await ExportSession.find({ userId: req.user._id }).select('originalRecords duplicatesRemoved finalCleanRecords');
     const stats = sessions.reduce((acc, curr) => ({
       totalFiles: acc.totalFiles + 1,
       totalRecords: acc.totalRecords + curr.originalRecords,
@@ -83,11 +94,11 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
-// 5. Get Specific Session (with records)
-app.get('/api/export-sessions/:id', async (req, res) => {
+// 5. Get Specific Session (with records) (PROTECTED)
+app.get('/api/export-sessions/:id', requireAuth, async (req, res) => {
   try {
     await connectDB();
-    const session = await ExportSession.findById(req.params.id);
+    const session = await ExportSession.findOne({ _id: req.params.id, userId: req.user._id });
     if (!session) return res.status(404).json({ error: 'Session not found' });
     res.json(session);
   } catch (err) {
@@ -95,11 +106,12 @@ app.get('/api/export-sessions/:id', async (req, res) => {
   }
 });
 
-// 6. Delete Specific Session
-app.delete('/api/export-sessions/:id', async (req, res) => {
+// 6. Delete Specific Session (PROTECTED)
+app.delete('/api/export-sessions/:id', requireAuth, async (req, res) => {
   try {
     await connectDB();
-    await ExportSession.findByIdAndDelete(req.params.id);
+    const session = await ExportSession.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
+    if (!session) return res.status(404).json({ error: 'Session not found' });
     res.json({ message: 'Session deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete session' });

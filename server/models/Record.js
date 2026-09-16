@@ -13,6 +13,7 @@ const recordSchema = new mongoose.Schema({
 
 // Export History Schema (optional, groups records together)
 const exportSessionSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   filename: { type: String, required: true, index: true },
   originalRecords: { type: Number, required: true },
   duplicatesRemoved: { type: Number, required: true },

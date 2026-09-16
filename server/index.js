@@ -1,20 +1,20 @@
-require('dotenv').config();
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const { ExportSession } = require('./models/Record');
+import dotenv from 'dotenv';
+dotenv.config();
+
+import express from 'express';
+import mongoose from 'mongoose';
+import cors from 'cors';
+import { ExportSession } from './models/Record.js';
+import connectDB from './db.js';
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' })); // Increased limit to support large arrays of records
 
 const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI;
 
 // Connect to MongoDB
-mongoose.connect(MONGODB_URI)
-.then(() => console.log('Successfully connected to MongoDB!'))
-.catch((err) => console.error('MongoDB connection error:', err));
+connectDB().catch(console.error);
 
 // --- API Routes ---
 
@@ -31,6 +31,7 @@ app.get('/api/health', (req, res) => {
 // 2. Save new Export Session & Records
 app.post('/api/export-sessions', async (req, res) => {
   try {
+    await connectDB();
     const { filename, stats, records } = req.body;
 
     if (!filename || !stats || !records) {
@@ -56,6 +57,7 @@ app.post('/api/export-sessions', async (req, res) => {
 // 3. Get all Export Sessions (History)
 app.get('/api/export-sessions', async (req, res) => {
   try {
+    await connectDB();
     // Return sessions without the large records array to save bandwidth on the list view
     const sessions = await ExportSession.find().select('-records').sort({ createdAt: -1 });
     res.json(sessions);
@@ -64,11 +66,12 @@ app.get('/api/export-sessions', async (req, res) => {
   }
 });
 
-// Start Server
-if (require.main === module) {
+// Start Server (checking import.meta.url for ESM equivalent of require.main === module)
+import { fileURLToPath } from 'url';
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
   app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
   });
 }
 
-module.exports = app;
+export default app;

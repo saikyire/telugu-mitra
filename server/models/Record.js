@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const recordSchema = new mongoose.Schema({
   originalEntry: { type: String, required: true },
@@ -22,4 +22,4 @@ const exportSessionSchema = new mongoose.Schema({
 
 const ExportSession = mongoose.model('ExportSession', exportSessionSchema);
 
-module.exports = { ExportSession };
+export { ExportSession };

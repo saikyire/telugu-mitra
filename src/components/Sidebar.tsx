@@ -31,7 +31,10 @@ export default function Sidebar() {
           <FileUp size={20} />
           <span>Process File</span>
         </div>
-        <div className="nav-item">
+        <div 
+          className={`nav-item ${stage === 'HISTORY' ? 'active' : ''}`}
+          onClick={() => setStage('HISTORY')}
+        >
           <History size={20} />
           <span>History</span>
         </div>

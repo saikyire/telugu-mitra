@@ -10,13 +10,13 @@ interface AppState {
   rows: ParsedRow[];
   stats: ProcessingStats | null;
   error: string | null;
-  stage: 'UPLOAD' | 'PROCESSING' | 'RESULTS';
+  stage: 'UPLOAD' | 'PROCESSING' | 'RESULTS' | 'HISTORY';
 }
 
 interface AppContextType extends AppState {
   processFile: (file: File) => Promise<void>;
   resetApp: () => void;
-  setStage: (stage: 'UPLOAD' | 'PROCESSING' | 'RESULTS') => void;
+  setStage: (stage: 'UPLOAD' | 'PROCESSING' | 'RESULTS' | 'HISTORY') => void;
 }
 
 const initialState: AppState = {
@@ -66,7 +66,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState(initialState);
   };
 
-  const setStage = (stage: 'UPLOAD' | 'PROCESSING' | 'RESULTS') => {
+  const setStage = (stage: 'UPLOAD' | 'PROCESSING' | 'RESULTS' | 'HISTORY') => {
     setState(prev => ({ ...prev, stage }));
   };
 

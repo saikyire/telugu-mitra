@@ -1,6 +1,7 @@
 import { useApp, AppProvider } from './AppContext';
 import UploadZone from './components/UploadZone';
 import ResultsDashboard from './components/ResultsDashboard';
+import HistoryDashboard from './components/HistoryDashboard';
 import Sidebar from './components/Sidebar';
 import { Bell, ChevronDown } from 'lucide-react';
 
@@ -38,6 +39,7 @@ function MainApp() {
             </div>
           )}
           {stage === 'RESULTS' && <ResultsDashboard />}
+          {stage === 'HISTORY' && <HistoryDashboard />}
         </main>
       </div>
     </div>

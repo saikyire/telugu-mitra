@@ -51,7 +51,8 @@ export default function ResultsDashboard() {
       exportToExcel(rows, stats, file?.name || 'export');
 
       // 2. Save to Database
-      const response = await fetch('http://localhost:5000/api/export-sessions', {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${apiUrl}/api/export-sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

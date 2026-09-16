@@ -20,7 +20,12 @@ mongoose.connect(MONGODB_URI)
 
 // 1. Healthcheck
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Backend is running' });
+  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+  res.json({ 
+    status: 'ok', 
+    message: 'Backend is running',
+    database: dbStatus 
+  });
 });
 
 // 2. Save new Export Session & Records
@@ -60,6 +65,10 @@ app.get('/api/export-sessions', async (req, res) => {
 });
 
 // Start Server
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;

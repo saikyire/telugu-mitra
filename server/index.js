@@ -55,11 +55,8 @@ app.post('/api/export-sessions', requireAuth, async (req, res) => {
       const term = record.term || '';
       const meaning = record.meaning || '';
       
-      if (term && foreignLetterRegex.test(term)) {
-        return res.status(400).json({ error: 'TeluguMitra accepts Telugu-language datasets only. Non-Telugu text detected in term: ' + term });
-      }
-      if (meaning && foreignLetterRegex.test(meaning)) {
-        return res.status(400).json({ error: 'TeluguMitra accepts Telugu-language datasets only. Non-Telugu text detected in meaning: ' + meaning });
+      if ((term && foreignLetterRegex.test(term)) || (meaning && foreignLetterRegex.test(meaning))) {
+        return res.status(400).json({ error: 'TeluguMitra is built for Telugu — please upload a Telugu Excel file to keep your data clean and accurate.' });
       }
     }
 

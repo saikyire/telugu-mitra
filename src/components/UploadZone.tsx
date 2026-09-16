@@ -131,10 +131,7 @@ export default function UploadZone() {
             {isInvalid ? (
               <div>
                 <p style={{ color: 'var(--color-danger)', fontWeight: 500, marginBottom: '0.5rem' }}>
-                  Non-Telugu text was detected in this Excel file. Please upload a Telugu-only dataset.
-                </p>
-                <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>
-                  Error found in Row {validationResult.invalidCells[0].row}, Column "{validationResult.invalidCells[0].col}": <strong>"{validationResult.invalidCells[0].value}"</strong>
+                  TeluguMitra is built for Telugu — please upload a Telugu Excel file to keep your data clean and accurate.
                 </p>
               </div>
             ) : (

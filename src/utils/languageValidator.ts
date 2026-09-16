@@ -53,7 +53,7 @@ export const validateTeluguDataset = (
       valid: false,
       language: "Non-Telugu",
       invalidCells,
-      message: "TeluguMitra accepts Telugu-language datasets only."
+      message: "TeluguMitra is built for Telugu — please upload a Telugu Excel file to keep your data clean and accurate."
     };
   }
 

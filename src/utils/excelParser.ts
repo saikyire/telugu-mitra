@@ -64,8 +64,7 @@ export const parseExcelFile = (file: File, raw: boolean = false): Promise<any[]>
         // --- STRICT TELUGU LANGUAGE VALIDATION ---
         const validation = validateTeluguDataset(jsonData, termCol, meaningCol);
         if (!validation.valid) {
-          const firstError = validation.invalidCells[0];
-          throw new Error(`Non-Telugu text was detected in this Excel file (Row ${firstError.row}, Column "${firstError.col}"). Please upload a Telugu-only dataset.`);
+          throw new Error(`TeluguMitra is built for Telugu — please upload a Telugu Excel file to keep your data clean and accurate.`);
         }
 
         jsonData.forEach((row: any, index) => {

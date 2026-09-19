@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
 const recordSchema = new mongoose.Schema({
-  originalEntry: { type: String, required: true },
+  originalEntry: { type: String }, // No longer required
   term: { type: String, required: true },
   meaning: { type: String, required: true },
   normalizedTerm: { type: String },
@@ -11,9 +11,9 @@ const recordSchema = new mongoose.Schema({
   duplicateType: { type: String }
 }, { timestamps: true });
 
-// Export History Schema (optional, groups records together)
+// Export History Schema (groups records together)
 const exportSessionSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  userId: { type: String, required: true, index: true }, // Changed from ObjectId to String to support 'admin_user_id'
   filename: { type: String, required: true, index: true },
   originalRecords: { type: Number, required: true },
   duplicatesRemoved: { type: Number, required: true },

@@ -69,13 +69,36 @@ export const parseExcelFile = (file: File, raw: boolean = false): Promise<any[]>
 
         jsonData.forEach((row: any, index) => {
           if (row[termCol]) {
-            parsedRows.push({
-              id: `row-${index}`,
-              originalRowNumber: index + 2,
-              term: String(row[termCol]).trim(),
-              meaning: String(row[meaningCol] || '').trim(),
-              status: 'UNIQUE'
-            });
+            const rawTerm = String(row[termCol]).trim();
+            const rawMeaning = String(row[meaningCol] || '').trim();
+            
+            // Split meanings based on common separators: /, |, ;, ,
+            // We use a regex that handles optional surrounding spaces.
+            const meaningParts = rawMeaning
+              .split(/\s*[\/|;,]\s*/)
+              .map(m => m.trim())
+              .filter(m => m.length > 0);
+
+            if (meaningParts.length > 0) {
+              meaningParts.forEach((part, partIndex) => {
+                parsedRows.push({
+                  id: `row-${index}-${partIndex}`,
+                  originalRowNumber: index + 2,
+                  term: rawTerm,
+                  meaning: part,
+                  status: 'UNIQUE'
+                });
+              });
+            } else {
+              // If meaning was empty or just separators, add it as is
+              parsedRows.push({
+                id: `row-${index}-0`,
+                originalRowNumber: index + 2,
+                term: rawTerm,
+                meaning: rawMeaning,
+                status: 'UNIQUE'
+              });
+            }
           }
         });
 

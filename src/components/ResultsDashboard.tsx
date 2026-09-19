@@ -36,15 +36,22 @@ export default function ResultsDashboard() {
       // Strict Validation Check
       if (stats.finalDuplicateCount > 0) {
         alert('Final validation detected duplicate records. Export has been temporarily disabled.');
+        setIsExporting(false);
         return;
       }
+      
+      // Generate the Excel file immediately
+      const originalFilename = viewingSavedSession ? sessionFilename : (file?.name || 'export');
+      const cleanFilename = `TeluguMitra_Clean_${originalFilename.replace('.xlsx', '').replace('.xls', '')}.xlsx`;
+      
+      exportToExcel(rows, stats, cleanFilename);
       
       // If we are just viewing a saved session, we don't need to re-save to DB.
       if (!viewingSavedSession) {
         const apiUrl = import.meta.env.VITE_API_URL || '';
         
-        // Save to DB
-        const response = await fetch(`${apiUrl}/api/export-sessions`, {
+        // Save to DB in the background
+        fetch(`${apiUrl}/api/export-sessions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -52,21 +59,11 @@ export default function ResultsDashboard() {
             stats,
             records: rows.filter(r => r.status === 'UNIQUE')
           })
+        }).catch(err => {
+          console.error('Failed to save session to history:', err);
         });
 
-        if (!response.ok) {
-          console.error('Failed to save session to history');
-        }
-      }
-
-      // Generate the Excel file
-      const originalFilename = viewingSavedSession ? sessionFilename : (file?.name || 'export');
-      const cleanFilename = `TeluguMitra_Clean_${originalFilename.replace('.xlsx', '').replace('.xls', '')}.xlsx`;
-      
-      exportToExcel(rows, stats, cleanFilename); // Passing stats to support the Summary sheet if implemented
-      
-      if (!viewingSavedSession) {
-        alert('File exported successfully and saved to History!');
+        alert('File exported successfully! It is being saved to your History.');
       } else {
         alert('File exported successfully!');
       }

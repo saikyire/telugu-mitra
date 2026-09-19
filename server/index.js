@@ -49,14 +49,23 @@ app.post('/api/export-sessions', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // --- STRICT TELUGU LANGUAGE VALIDATION ---
-    const foreignLetterRegex = /(?=[^\u0C00-\u0C7F])\p{L}/u;
-    for (const record of records) {
-      const term = record.term || '';
-      const meaning = record.meaning || '';
+    // --- THRESHOLD TELUGU LANGUAGE VALIDATION ---
+    // At least 30% of records must contain some Telugu to be considered a valid dataset
+    let rowsWithTelugu = 0;
+    const teluguCharRegex = /[\u0C00-\u0C7F]/;
+    
+    if (records && records.length > 0) {
+      for (const record of records) {
+        const term = record.term || '';
+        const meaning = record.meaning || '';
+        
+        if (teluguCharRegex.test(term) || teluguCharRegex.test(meaning)) {
+          rowsWithTelugu++;
+        }
+      }
       
-      if ((term && foreignLetterRegex.test(term)) || (meaning && foreignLetterRegex.test(meaning))) {
-        return res.status(400).json({ error: 'TeluguMitra is built for Telugu — please upload a Telugu Excel file to keep your data clean and accurate.' });
+      if ((rowsWithTelugu / records.length) < 0.3) {
+        return res.status(400).json({ error: 'This file does not appear to be a Telugu dataset and has been rejected.' });
       }
     }
 

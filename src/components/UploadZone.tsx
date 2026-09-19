@@ -1,8 +1,9 @@
 import { useState, useCallback, useMemo } from 'react';
-import { Upload, FileUp, AlertCircle, PlayCircle, CheckCircle } from 'lucide-react';
+import { Upload, FileUp, AlertCircle, PlayCircle, CheckCircle, Info } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { validateTeluguDataset } from '../utils/languageValidator';
 import type { ValidationResult } from '../utils/languageValidator';
+import { isDictionaryFormat, transformDictionaryRows } from '../utils/excelHelpers';
 
 export default function UploadZone() {
   const { stage, isProcessing, error: appError, setFileAndPreview, file, rawRows, processData } = useApp();
@@ -12,8 +13,15 @@ export default function UploadZone() {
   const [termCol, setTermCol] = useState('');
   const [meaningCol, setMeaningCol] = useState('');
 
-  // Setup initial mapping guess when entering PREVIEW stage
-  if (stage === 'PREVIEW' && rawRows.length > 0 && !termCol && !meaningCol) {
+  const isDictionary = useMemo(() => isDictionaryFormat(rawRows), [rawRows]);
+
+  const transformedDataForValidation = useMemo(() => {
+    if (!isDictionary) return null;
+    return transformDictionaryRows(rawRows);
+  }, [isDictionary, rawRows]);
+
+  // Setup initial mapping guess when entering PREVIEW stage for normal files
+  if (stage === 'PREVIEW' && rawRows.length > 0 && !termCol && !meaningCol && !isDictionary) {
     const firstRow = rawRows[0];
     const keys = Object.keys(firstRow);
     let t = '', m = '';
@@ -31,9 +39,15 @@ export default function UploadZone() {
   }
 
   const validationResult: ValidationResult | null = useMemo(() => {
-    if (stage !== 'PREVIEW' || !rawRows.length || !termCol || !meaningCol) return null;
+    if (stage !== 'PREVIEW' || !rawRows.length) return null;
+    
+    if (isDictionary && transformedDataForValidation) {
+      return validateTeluguDataset(transformedDataForValidation, 'Term', 'Meaning');
+    }
+
+    if (!termCol || !meaningCol) return null;
     return validateTeluguDataset(rawRows, termCol, meaningCol);
-  }, [stage, rawRows, termCol, meaningCol]);
+  }, [stage, rawRows, termCol, meaningCol, isDictionary, transformedDataForValidation]);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -72,14 +86,19 @@ export default function UploadZone() {
   };
 
   const startProcessing = () => {
-    if (!termCol || !meaningCol) {
+    if (!isDictionary && (!termCol || !meaningCol)) {
       alert('Please select both Term and Meaning columns.');
       return;
     }
     if (validationResult && !validationResult.valid) {
       return;
     }
-    processData({ term: termCol, meaning: meaningCol });
+    
+    if (isDictionary) {
+      processData({ term: 'Term', meaning: 'Meaning' }, true);
+    } else {
+      processData({ term: termCol, meaning: meaningCol }, false);
+    }
   };
 
   if (stage === 'PROCESSING' || isProcessing) {
@@ -93,9 +112,19 @@ export default function UploadZone() {
   }
 
   if (stage === 'PREVIEW') {
-    const headers = rawRows.length > 0 ? Object.keys(rawRows[0]) : [];
-    const previewRows = rawRows.slice(0, 10);
     const isInvalid = Boolean(validationResult && !validationResult.valid);
+    
+    // Calculate what to show in the preview table
+    let headers: string[] = [];
+    let previewRows: any[] = [];
+
+    if (isDictionary && transformedDataForValidation) {
+      headers = ['Term', 'Meaning'];
+      previewRows = transformedDataForValidation.slice(0, 10);
+    } else {
+      headers = rawRows.length > 0 ? Object.keys(rawRows[0]) : [];
+      previewRows = rawRows.slice(0, 10);
+    }
 
     return (
       <div className="workspace" style={{ animation: 'fadeIn 0.3s ease-out', maxWidth: '900px', margin: '0 auto' }}>
@@ -147,40 +176,52 @@ export default function UploadZone() {
           </div>
         )}
 
-        <div className="mapping-card" style={{ background: 'var(--color-bg)', padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem', border: '1px solid var(--color-border)' }}>
-          <h3 style={{ marginBottom: '1rem', color: 'var(--color-text)' }}>Verify Columns</h3>
-          <p style={{ color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
-            We've tried to automatically detect the Term and Meaning columns. If they are incorrect, please select them below.
-          </p>
-          
-          <div style={{ display: 'flex', gap: '2rem' }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Term Column:</label>
-              <select 
-                className="select-input" 
-                value={termCol} 
-                onChange={(e) => setTermCol(e.target.value)}
-                style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--color-border)' }}
-              >
-                <option value="">-- Select Column --</option>
-                {headers.map(h => <option key={h} value={h}>{h}</option>)}
-              </select>
-            </div>
+        {isDictionary ? (
+          <div className="mapping-card" style={{ background: 'var(--color-primary-light)', padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem', border: '1px solid var(--color-primary)' }}>
+            <h3 style={{ marginBottom: '0.5rem', color: 'var(--color-primary-dark)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Info size={20} />
+              Telugu dictionary format detected
+            </h3>
+            <p style={{ color: 'var(--color-primary-dark)' }}>
+              Term and meaning data will be automatically separated. No manual column mapping is required.
+            </p>
+          </div>
+        ) : (
+          <div className="mapping-card" style={{ background: 'var(--color-bg)', padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem', border: '1px solid var(--color-border)' }}>
+            <h3 style={{ marginBottom: '1rem', color: 'var(--color-text)' }}>Verify Columns</h3>
+            <p style={{ color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
+              We've tried to automatically detect the Term and Meaning columns. If they are incorrect, please select them below.
+            </p>
             
-            <div style={{ flex: 1 }}>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Meaning Column:</label>
-              <select 
-                className="select-input" 
-                value={meaningCol} 
-                onChange={(e) => setMeaningCol(e.target.value)}
-                style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--color-border)' }}
-              >
-                <option value="">-- Select Column --</option>
-                {headers.map(h => <option key={h} value={h}>{h}</option>)}
-              </select>
+            <div style={{ display: 'flex', gap: '2rem' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Term Column:</label>
+                <select 
+                  className="select-input" 
+                  value={termCol} 
+                  onChange={(e) => setTermCol(e.target.value)}
+                  style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--color-border)' }}
+                >
+                  <option value="">-- Select Column --</option>
+                  {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+              </div>
+              
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Meaning Column:</label>
+                <select 
+                  className="select-input" 
+                  value={meaningCol} 
+                  onChange={(e) => setMeaningCol(e.target.value)}
+                  style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--color-border)' }}
+                >
+                  <option value="">-- Select Column --</option>
+                  {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <h3 style={{ marginBottom: '1rem', color: 'var(--color-text)' }}>Data Preview (First 10 rows)</h3>
         <div className="table-wrapper">
@@ -190,12 +231,12 @@ export default function UploadZone() {
                 <th style={{ width: '60px' }}>ROW</th>
                 {headers.map(h => (
                   <th key={h} style={{ 
-                    backgroundColor: h === termCol || h === meaningCol ? 'var(--color-primary-light)' : 'transparent',
-                    color: h === termCol || h === meaningCol ? 'var(--color-primary-dark)' : 'inherit'
+                    backgroundColor: h === termCol || h === meaningCol || isDictionary ? 'var(--color-primary-light)' : 'transparent',
+                    color: h === termCol || h === meaningCol || isDictionary ? 'var(--color-primary-dark)' : 'inherit'
                   }}>
                     {h}
-                    {h === termCol && ' (Term)'}
-                    {h === meaningCol && ' (Meaning)'}
+                    {!isDictionary && h === termCol && ' (Term)'}
+                    {!isDictionary && h === meaningCol && ' (Meaning)'}
                   </th>
                 ))}
               </tr>

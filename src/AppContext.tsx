@@ -20,7 +20,7 @@ interface AppState {
 
 interface AppContextType extends AppState {
   setFileAndPreview: (file: File) => Promise<void>;
-  processData: (columnMap: { term: string, meaning: string }) => Promise<void>;
+  processData: (columnMap: { term: string, meaning: string }, isDictionary?: boolean) => Promise<void>;
   loadSession: (sessionId: string) => Promise<void>;
   resetApp: () => void;
   setStage: (stage: AppStage) => void;
@@ -47,31 +47,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState(prev => ({ ...prev, file, isProcessing: true, error: null }));
     try {
       // Just extract raw data for preview
-      const rawRows = await parseExcelFile(file, true); // true = raw mode (we need to implement this flag in excelParser)
+      const rawRows = await parseExcelFile(file, true);
       setState(prev => ({ ...prev, rawRows, isProcessing: false, stage: 'PREVIEW' }));
     } catch (err: any) {
       setState(prev => ({ ...prev, isProcessing: false, error: err.message, stage: 'UPLOAD' }));
     }
   };
 
-  const processData = async (columnMap: { term: string, meaning: string }) => {
+  const processData = async (columnMap: { term: string, meaning: string }, isDictionary: boolean = false) => {
     setState(prev => ({ ...prev, isProcessing: true, stage: 'PROCESSING', error: null }));
     try {
       // Simulate slight delay for UX
       await new Promise(r => setTimeout(r, 1500));
       
-      // Map columns based on user selection
-      const mappedRows: ParsedRow[] = state.rawRows
+      let baseRows: any[] = [];
+      
+      if (isDictionary) {
+        const { transformDictionaryRows } = await import('./utils/excelHelpers');
+        baseRows = transformDictionaryRows(state.rawRows);
+      } else {
+        baseRows = state.rawRows;
+      }
+      
+      // Map columns based on user selection or transformed data
+      const mappedRows = baseRows
         .filter(row => row[columnMap.term] && String(row[columnMap.term]).trim() !== '')
         .map((row, index) => ({
-          id: `row-${index}`,
           originalRowNumber: index + 2,
           term: String(row[columnMap.term] || '').trim(),
           meaning: String(row[columnMap.meaning] || '').trim(),
-          status: 'UNIQUE'
         }));
 
-      const { processedRows, stats } = detectDuplicates(mappedRows);
+      // Expand multiple meanings into separate rows
+      const { expandMultipleMeanings } = await import('./utils/excelHelpers');
+      const expandedRows = expandMultipleMeanings(mappedRows);
+
+      const { processedRows, stats } = detectDuplicates(expandedRows);
 
       setState(prev => ({
         ...prev,

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Leaf, Eye, EyeOff, AlertCircle, Mail, Lock } from 'lucide-react';
+import { Leaf, Eye, EyeOff, AlertCircle, User, Lock } from 'lucide-react';
 
 export default function Login() {
-  const { setAuthStage, setUnverifiedEmail, login } = useAuth();
-  const [email, setEmail] = useState('');
+  const { login } = useAuth();
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,24 +20,19 @@ export default function Login() {
       const response = await fetch(`${apiUrl}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ username, password }),
         credentials: 'include'
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        if (data.unverified) {
-          setUnverifiedEmail(email);
-          setAuthStage('VERIFY');
-          return;
-        }
-        throw new Error(data.error || 'Failed to login');
+        throw new Error(data.error || 'Invalid username or password. Please check your credentials and try again.');
       }
 
       login(data.user);
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Invalid username or password. Please check your credentials and try again.');
     } finally {
       setIsLoading(false);
     }
@@ -60,21 +55,17 @@ export default function Login() {
         {/* Abstract SVG Illustration */}
         <div className="auth-illustration">
           <svg viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
-            {/* Soft decorative circles */}
             <circle cx="300" cy="100" r="150" fill="url(#grad1)" opacity="0.6" />
             <circle cx="100" cy="300" r="100" fill="url(#grad2)" opacity="0.4" />
             
-            {/* Data sheet abstract */}
             <rect x="80" y="80" width="240" height="200" rx="16" fill="white" fillOpacity="0.8" stroke="#F97316" strokeWidth="2" strokeOpacity="0.3"/>
             <line x1="80" y1="130" x2="320" y2="130" stroke="#F97316" strokeWidth="2" strokeOpacity="0.2"/>
             <line x1="80" y1="180" x2="320" y2="180" stroke="#F97316" strokeWidth="2" strokeOpacity="0.2"/>
             <line x1="160" y1="80" x2="160" y2="280" stroke="#F97316" strokeWidth="2" strokeOpacity="0.2"/>
             
-            {/* Elegant curves mimicking Telugu letterforms */}
             <path d="M 120 220 Q 150 220 150 250 Q 150 280 180 250" stroke="#EA580C" strokeWidth="6" strokeLinecap="round" fill="none" opacity="0.8"/>
             <path d="M 200 120 Q 250 80 280 150 Q 290 180 260 210" stroke="#F97316" strokeWidth="8" strokeLinecap="round" fill="none" opacity="0.8"/>
             
-            {/* Leaf motif */}
             <path d="M 220 230 C 220 230 270 200 300 230 C 270 260 220 230 220 230 Z" fill="#F97316" opacity="0.9"/>
             
             <defs>
@@ -98,7 +89,6 @@ export default function Login() {
       {/* Right Panel */}
       <div className="auth-right-panel">
         <div className="auth-form-container">
-          {/* Mobile Branding (hidden on desktop) */}
           <div className="auth-mobile-brand">
             <Leaf className="auth-brand-logo" size={28} />
             <h1>Telugu<span>Mitra</span></h1>
@@ -118,14 +108,14 @@ export default function Login() {
 
           <form onSubmit={handleSubmit}>
             <div className="auth-form-group">
-              <label>Email Address</label>
+              <label>Username</label>
               <div className="auth-input-wrapper">
-                <Mail className="auth-input-icon" size={20} />
+                <User className="auth-input-icon" size={20} />
                 <input 
-                  type="email" 
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email address"
+                  type="text" 
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Enter your username"
                   required 
                   className="auth-input"
                 />
@@ -155,23 +145,10 @@ export default function Login() {
               </div>
             </div>
 
-            <div className="auth-form-options">
-              <button type="button" className="auth-forgot-link" onClick={() => setAuthStage('FORGOT_PASSWORD')}>
-                Forgot password?
-              </button>
-            </div>
-
-            <button type="submit" className="auth-btn-primary" disabled={isLoading}>
+            <button type="submit" className="auth-btn-primary" disabled={isLoading} style={{ marginTop: '1.5rem' }}>
               {isLoading ? 'Signing In...' : 'Sign In'}
             </button>
           </form>
-
-          <div className="auth-bottom-text">
-            Don't have an account? 
-            <button className="auth-bottom-link" onClick={() => setAuthStage('SIGNUP')}>
-              Create an account
-            </button>
-          </div>
         </div>
       </div>
     </div>

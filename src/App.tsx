@@ -8,24 +8,17 @@ import Dashboard from './components/Dashboard';
 import Settings from './components/Settings';
 import Help from './components/Help';
 import Login from './components/auth/Login';
-import SignUp from './components/auth/SignUp';
-import VerifyOTP from './components/auth/VerifyOTP';
-import ForgotPassword from './components/auth/ForgotPassword';
 import { Bell, ChevronDown } from 'lucide-react';
 
 function MainApp() {
   const { stage } = useApp();
-  const { isAuthenticated, isLoading, authStage, user, logout } = useAuth();
+  const { isAuthenticated, isLoading, user, logout } = useAuth();
 
   if (isLoading) {
     return <div className="loading-screen">Loading...</div>;
   }
 
   if (!isAuthenticated) {
-    if (authStage === 'LOGIN') return <Login />;
-    if (authStage === 'SIGNUP') return <SignUp />;
-    if (authStage === 'VERIFY') return <VerifyOTP />;
-    if (authStage === 'FORGOT_PASSWORD') return <ForgotPassword />;
     return <Login />;
   }
 

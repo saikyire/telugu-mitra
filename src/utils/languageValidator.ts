@@ -14,10 +14,33 @@ export const isStrictTeluguText = (text: string): boolean => {
   return !foreignLetterRegex.test(text);
 };
 
+/**
+ * Extracts exact non-Telugu words from the text for error reporting.
+ */
+export const extractNonTeluguWords = (text: string): string[] => {
+  if (!text) return [];
+  // Split the text into words by spaces
+  const words = text.split(/\s+/);
+  const foreignWords: string[] = [];
+  const foreignLetterRegex = /(?=[^\u0C00-\u0C7F])\p{L}/u;
+  
+  for (const word of words) {
+    if (foreignLetterRegex.test(word)) {
+      // Strip trailing punctuation like ), ], . to make the extracted word cleaner
+      const cleanWord = word.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, '');
+      if (cleanWord) {
+        foreignWords.push(cleanWord);
+      }
+    }
+  }
+  
+  return Array.from(new Set(foreignWords)); // Return unique words
+};
+
 export interface ValidationResult {
   valid: boolean;
   language: string;
-  invalidCells: { row: number; col: string; value: string }[];
+  invalidCells: { row: number; col: string; value: string; fullRowText: string; detectedWords: string[] }[];
   message: string;
 }
 
@@ -29,7 +52,7 @@ export const validateTeluguDataset = (
   termCol: string,
   meaningCol: string
 ): ValidationResult => {
-  const invalidCells: { row: number; col: string; value: string }[] = [];
+  const invalidCells: { row: number; col: string; value: string; fullRowText: string; detectedWords: string[] }[] = [];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -39,12 +62,25 @@ export const validateTeluguDataset = (
     // Skip empty rows as they will be caught by required field validation if needed
     if (!term && !meaning) continue;
 
-    if (term && !isStrictTeluguText(term)) {
-      invalidCells.push({ row: i + 2, col: termCol, value: term });
-    }
+    const fullRowText = `${term} | ${meaning}`;
 
-    if (meaning && !isStrictTeluguText(meaning)) {
-      invalidCells.push({ row: i + 2, col: meaningCol, value: meaning });
+    if (term && !isStrictTeluguText(term)) {
+      invalidCells.push({ 
+        row: i + 2, 
+        col: termCol, 
+        value: term, 
+        fullRowText,
+        detectedWords: extractNonTeluguWords(term)
+      });
+    } else if (meaning && !isStrictTeluguText(meaning)) {
+      // Use else if so we don't log the same row twice if both are invalid (or we could log both)
+      invalidCells.push({ 
+        row: i + 2, 
+        col: meaningCol, 
+        value: meaning, 
+        fullRowText,
+        detectedWords: extractNonTeluguWords(meaning)
+      });
     }
   }
 

@@ -153,15 +153,41 @@ export default function UploadZone() {
             marginBottom: '2rem', 
             border: `1px solid ${isInvalid ? 'var(--color-danger)' : '#22c55e'}` 
           }}>
-            <h3 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: isInvalid ? 'var(--color-danger)' : '#15803d' }}>
+            <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: isInvalid ? 'var(--color-danger)' : '#15803d' }}>
               {isInvalid ? <AlertCircle size={20} /> : <CheckCircle size={20} />}
               Language Validation
             </h3>
             {isInvalid ? (
               <div>
-                <p style={{ color: 'var(--color-danger)', fontWeight: 500, marginBottom: '0.5rem' }}>
-                  TeluguMitra is built for Telugu — please upload a Telugu Excel file to keep your data clean and accurate.
+                <p style={{ color: 'var(--color-danger)', fontWeight: 600, marginBottom: '1rem', fontSize: '1.1rem' }}>
+                  {validationResult.message}
                 </p>
+                <p style={{ color: 'var(--color-text)', fontWeight: 500, marginBottom: '1rem' }}>
+                  Non-Telugu content detected in the uploaded file:
+                </p>
+                <div style={{ maxHeight: '300px', overflowY: 'auto', background: '#fff', borderRadius: '8px', border: '1px solid var(--color-border)', padding: '1rem' }}>
+                  {validationResult.invalidCells.slice(0, 20).map((cell, idx) => (
+                    <div key={idx} style={{ marginBottom: idx < validationResult.invalidCells.length - 1 ? '1.5rem' : '0', paddingBottom: idx < validationResult.invalidCells.length - 1 ? '1.5rem' : '0', borderBottom: idx < validationResult.invalidCells.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
+                      <div style={{ fontWeight: 600, color: 'var(--color-text)', marginBottom: '0.5rem' }}>Row {cell.row}</div>
+                      <div style={{ background: 'var(--color-bg)', padding: '0.75rem', borderRadius: '6px', fontFamily: 'monospace', color: 'var(--color-text-muted)', marginBottom: '0.75rem', wordBreak: 'break-word' }}>
+                        {cell.fullRowText}
+                      </div>
+                      <div style={{ color: 'var(--color-danger)', fontWeight: 500, display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <span>Detected non-Telugu text:</span>
+                        {cell.detectedWords.map((word, wIdx) => (
+                          <span key={wIdx} style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '0.1rem 0.5rem', borderRadius: '4px' }}>
+                            {word}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {validationResult.invalidCells.length > 20 && (
+                    <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', marginTop: '1rem', fontStyle: 'italic' }}>
+                      ... and {validationResult.invalidCells.length - 20} more errors.
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <p style={{ color: '#15803d' }}>✓ Telugu-only dataset verified.</p>

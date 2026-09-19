@@ -48,22 +48,7 @@ export default function ResultsDashboard() {
       
       // If we are just viewing a saved session, we don't need to re-save to DB.
       if (!viewingSavedSession) {
-        const apiUrl = import.meta.env.VITE_API_URL || '';
-        
-        // Save to DB in the background
-        fetch(`${apiUrl}/api/export-sessions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            filename: file?.name || 'export',
-            stats,
-            records: rows.filter(r => r.status === 'UNIQUE')
-          })
-        }).catch(err => {
-          console.error('Failed to save session to history:', err);
-        });
-
-        alert('File exported successfully! It is being saved to your History.');
+        alert('File exported successfully! Your processing session is saved in History.');
       } else {
         alert('File exported successfully!');
       }

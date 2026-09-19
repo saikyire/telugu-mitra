@@ -84,6 +84,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const { processedRows, stats } = detectDuplicates(expandedRows);
 
+      // SAVE SESSION TO DATABASE
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL || '';
+        await fetch(`${apiUrl}/api/export-sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            filename: state.file?.name || 'export',
+            stats,
+            records: processedRows.filter(r => r.status === 'UNIQUE')
+          })
+        });
+      } catch (saveErr) {
+        console.error('Failed to save processing session:', saveErr);
+      }
+
       setState(prev => ({
         ...prev,
         isProcessing: false,
@@ -102,7 +119,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState(prev => ({ ...prev, isProcessing: true, stage: 'PROCESSING' }));
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/export-sessions/${sessionId}`);
+      const res = await fetch(`${apiUrl}/api/export-sessions/${sessionId}`, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to load session');
       const data = await res.json();
       

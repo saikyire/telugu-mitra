@@ -27,7 +27,7 @@ export default function HistoryDashboard() {
       setLoading(true);
       setError(null);
       const apiUrl = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${apiUrl}/api/export-sessions`);
+      const response = await fetch(`${apiUrl}/api/export-sessions`, { credentials: 'include' });
       
       if (!response.ok) {
         throw new Error('Failed to fetch history');

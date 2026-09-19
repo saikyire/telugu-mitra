@@ -31,6 +31,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<GlobalStats>({ totalFiles: 0, totalRecords: 0, totalRemoved: 0, totalClean: 0 });
   const [recentSessions, setRecentSessions] = useState<ExportSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDashboardData();
@@ -39,24 +40,27 @@ export default function Dashboard() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
+      setError(null);
       const apiUrl = import.meta.env.VITE_API_URL || '';
       
       const [statsRes, historyRes] = await Promise.all([
-        fetch(`${apiUrl}/api/stats`),
-        fetch(`${apiUrl}/api/export-sessions`)
+        fetch(`${apiUrl}/api/stats`, { credentials: 'include' }),
+        fetch(`${apiUrl}/api/export-sessions`, { credentials: 'include' })
       ]);
       
-      if (statsRes.ok) {
-        const statsData = await statsRes.json();
-        setStats(statsData);
+      if (!statsRes.ok || !historyRes.ok) {
+        throw new Error('Failed to fetch dashboard data');
       }
       
-      if (historyRes.ok) {
-        const historyData = await historyRes.json();
-        setRecentSessions(historyData.slice(0, 5)); // Just top 5 for dashboard
-      }
+      const statsData = await statsRes.json();
+      setStats(statsData);
+      
+      const historyData = await historyRes.json();
+      setRecentSessions(historyData.slice(0, 5)); // Just top 5 for dashboard
+      
     } catch (err) {
       console.error('Failed to load dashboard data', err);
+      setError('Unable to load dashboard statistics. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -89,6 +93,12 @@ export default function Dashboard() {
 
       <div className="workspace" style={{ marginTop: 'var(--space-xl)' }}>
         <h3 style={{ marginBottom: '1rem', color: 'var(--color-text)' }}>Lifetime Statistics</h3>
+        {error && (
+          <div className="error-alert" style={{ marginBottom: '2rem' }}>
+            <AlertCircle size={20} />
+            <span>{error}</span>
+          </div>
+        )}
         <div className="stats-grid">
           <div className="stat-card">
             <div className="stat-icon"><History size={20} /></div>
